@@ -1,0 +1,89 @@
+---
+title: "Course 8 Iek 4 Programming Assignment"
+author: "TEU"
+date: "8 6 2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Synopsis
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how Ill they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They Ire asked to perform barbell lifts correctly and incorrectly in 5 different ways. The data Ire provided by  [http://groupware.les.inf.puc-rio.br/har].
+
+# Preparation
+The data is downloaded within in the script and preprocessed.
+
+## Load libraries
+```{r}
+library(caret)
+```
+
+## Loading Data
+LOading the datasets for training and testing:
+```{r cache = TRUE}
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings = c("NA", "#DIV/0!", ""))
+
+testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", na.strings = c("NA", "#DIV/0!", ""))
+```
+
+## Cleaning Data
+Within the dataset there are quite a few columns that are either empty or have NA values. These have to be treated before modeling the data.
+```{r}
+str(training)
+```
+For this reason I decided to remove all uncomplete columns (more than 95% NA values)
+```{r}
+na.columns <- colSums(is.na(training)) < 0.95*nrow(training)
+training.mod <- training[, na.columns]
+str(training.mod)
+```
+
+# Model Fitting
+## Training and Validation 
+The training dataset is further divided into a training and a validation set
+```{r}
+inTrain <- createDataPartition(y = training.mod$classe,
+                               p = 3/4, list=FALSE)
+training.mod.train <- training.mod[inTrain,]
+training.mod.val <- training.mod[-inTrain,]
+```
+
+## Peform PCA with K-Fold Cross-Validation
+I decided to perform a principle components analysis to identify the most important variable combinations. Furthermore, k-fold crossvalidation is implemented. The PCA-variables are fitted to a random forrest model
+```{r message = FALSE, cache = TRUE, warning = FALSE}
+train.control <- trainControl(method = "cv",
+                              number = 10,
+                              preProcOptions = list(thresh = 0.8))
+mod.fit <- train( classe ~ .,
+                 method="rf",
+                 preProcess = "pca",
+                 trControl = train.control,
+                 data = training.mod.train)
+```
+Predict on Validation Data
+```{r}
+mod.pred <- predict( mod.fit, training.mod.val )
+```
+
+Show Confusion Matrix
+```{r}
+confusionMatrix( training.mod.val$classe, mod.pred )
+```
+
+# Prediction on Test Dataset
+## Prepare Test Dataset
+First I have to treat the test dataset in the same way I treated the training set:
+```{r}
+testing.mod <- testing[, colnames(training.mod)[1:53]]
+```
+Then I predict on the test data set
+```{r}
+(mod.pred <- predict( mod.fit, testing ))
+```
+
+# Discussion
+All in all I achieve an accuracy of 99.6%  on the validation data set, suggesting a good model fit.
